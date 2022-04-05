@@ -1,0 +1,6 @@
+terraform/**.lock.hcl
+**/.terraform
+**/.terraform.lock.hcl
+.idea/
+plan.json
+webhook.json
