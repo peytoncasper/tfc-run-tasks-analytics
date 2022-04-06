@@ -1,7 +1,10 @@
 package archive_function
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -38,19 +41,57 @@ func init() {
 
 }
 
-
 func HandleTerraformCloudRunTask(w http.ResponseWriter, r *http.Request) {
 	// Parse the request body to get the run task event
 	event := RunTaskEvent{}
 
-	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&event); err != nil {
 		log.Printf("json.NewDecoder: %v", err)
-		http.Error(w, "Error parsing request", http.StatusBadRequest)
+		fmt.Fprint(w, "error")
 		return
 	}
 
-	log.Printf(event.TaskResultId)
+	client := &http.Client{}
+	req, err := http.NewRequest(http.MethodGet, event.PlanJsonApiUrl, nil)
+	req.Header.Set("Authorization", "Bearer " + event.AccessToken)
+	if err != nil {
+		log.Println(err)
+		fmt.Fprint(w, "error")
+		return
+	}
 
-	w.WriteHeader(http.StatusOK)
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Println(err)
+		fmt.Fprint(w, "error")
+		return
+	}
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Println(err)
+		fmt.Fprint(w, "error")
+		return
+	}
+	log.Print(string(bodyBytes))
+
+	req, err = http.NewRequest(http.MethodPatch, event.TaskResultCallbackUrl, bytes.NewBuffer([]byte("{ \"data\": { \"type\": \"task-results\", \"attributes\": { \"status\": \"passed\", \"message\": \"Analytics Task\"} } }")))
+	req.Header.Set("Content-Type", "application/vnd.api+json")
+	req.Header.Set("Authorization", "Bearer " + event.AccessToken)
+	if err != nil {
+		log.Println(err)
+		fmt.Fprint(w, "error")
+		return
+	}
+
+	resp, err = client.Do(req)
+	if err != nil {
+		log.Println(err)
+		fmt.Fprint(w, "error")
+		return
+	}
+	bodyBytes, err = io.ReadAll(resp.Body)
+	log.Println(string(bodyBytes))
 	return
 }
+
